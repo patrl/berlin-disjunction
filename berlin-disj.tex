@@ -1,0 +1,662 @@
+%!TEX TS-program = pdflatex
+
+\documentclass{beamer}
+
+\title{Two souls of disjunction}
+\subtitle{Towards a state-monadic update semantics}
+\author{Patrick~D. Elliott}
+\date{July 3, 2019}
+\institute{Asymmetries in Language: Presuppositions and beyond -- Berlin}
+
+\input{berlin-disj-boilerplate}
+\addbibresource[location=remote]{berlin-disj.bib}
+
+\begin{document}
+
+\begin{frame}
+ \maketitle
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Two souls}
+
+  Two broad traditions addressing semantics and pragmatics of disjunction, with little-to-no overlap:
+
+  \begin{description}
+
+    \item[Scalar implicature literature]concerned with deriving exclusive readings and ignorance inferences while retaining inclusive disjunction as the basic meaning of natural language \enquote{or} (\citealt{sauerland2004scalar}).
+
+    \item[Dynamic semantics literature] concerned with deriving facts concerning presupposition projection in disjunctive sentences (\citealt{heim1983,beaver_presupposition_2001}).
+
+  \end{description}
+
+  \framebreak
+
+  \begin{itemize}
+
+      \item Both approaches to disjunction seem necessary, but it's not obvious that the two are even \textit{compatible} -- the scalar implicature literature takes as its starting point that \enquote{or} is \(\vee\), whereas dynamic semantics departs from this orthodoxy.
+
+      \item Relatedly, dynamic semantics has been criticized (see, e.g., \citealt{schlenker_local_2009}), because the dynamic entry for disjunction can't be derived from logical disjunction.
+
+  \end{itemize}
+
+  \metroset{block=fill}
+  \begin{block}{Our goal}
+      In this talk, we'll sketch a way of systematically lifting a fragment into the dynamic world. This will be successful, with the exception of disjunction. We'll suggest that this tension can be resolved by integrating \textit{exhaustification}.
+      \end{block}
+
+\end{frame}
+
+\begin{frame}{Roadmap}
+
+  \begin{itemize}
+
+      \item A brief recap of the Heim-Karttunen projection rules, update semantics, and the explanatory problem for dynamic semantics.
+
+      \item Tracking information growth via the \textsf{State} monad.
+
+      \item A type-shift from propositional to dynamic connectives (\textsf{dlift}), and a bad prediction for disjunction.
+
+      \item Resolving the tension via exhaustification, and some possible empirical payoffs.
+
+  \end{itemize}
+
+\end{frame}
+
+\section{The dynamic approach to presupposition projection}
+
+\begin{frame}{The Heim-Karttunen projection rules}
+
+  \pex
+  \a \textbf{Negation}\\If A\(_π\), then a sentence of the form \enquote{not A} presupposes \(π\).
+  \a \textbf{Conjunction}\\If A\(_π\), and B\(_ρ\), then a sentence of the form \enquote{A and B} presupposes \(π\), and unless A entails \(ρ\), also presupposes \(ρ\)
+  \a \textbf{Implication}\\If A\(_π\) and B\(_{ρ}\), then a sentence of the form \enquote{If A then B} presupposes \(π\), and unless A entails \(ρ\), also presupposes \(ρ\).
+  \a \textbf{Disjunction}\\If A\(_π\), and B presupposes B\(_ρ\), then a sentence of the form \enquote{A or B} presupposes \(π\), and unless \enquote{not A} entails \(ρ\), also presupposes \(ρ\).
+  \xe
+
+\end{frame}
+
+\begin{frame}{Some illustrations}
+
+  \ex
+  Paul didn't stop vaping.\hfill\textit{Paul vaped}
+  \xe
+
+  \ex~
+  Paul vaped and Paul didn't stop vaping.\hfill\textit{Presuppositionless}
+  \xe
+
+  \ex~
+  If Paul and Sophie vaped,\\
+  then Paul would never stop vaping.\hfill\textit{Presuppositionless}
+  \xe
+
+  \ex~
+  Either Paul never vaped,\\
+  or Paul stopped vaping.\hfill\textit{Presuppositionless}
+  \xe
+
+\end{frame}
+
+\begin{frame}{The dynamic view}
+
+  \begin{itemize}
+
+      \item Classical dynamic semantics (\citealt{groenendijk_dynamic_1991,heim1983}, a.o.) builds the projection rules \alert{directly into the semantics of the connectives}.
+
+    \item Sentences themselves express \textit{updates} of the common ground.
+
+    \item Presuppositions place definedness conditions on updates.
+
+    \item Dynamic connectives manipulate the input of subsequent juncts based on the output of previous juncts, thereby getting the projection facts.
+
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}{A Heimian fragment}
+
+  \ex~
+  Partial assertion operator (def.)\\
+  \(\mathbb{A}\,ϕ ≔ λ c . c ⊆ \ml{dom} ϕ . c ∩ \set{w|ϕ w}\)
+  \xe
+
+  \ex~
+  \(\eval{Paul stopped vaping} =λ w : \ml{vaped}_{w} \ml{p} . ¬ \ml{vapes}_{w} \ml{p}\)
+  \xe
+
+  \ex~
+  \(\mathbb{A} \eval{Paul stopped vaping} = \begin{aligned}[t]
+    λc&:c ⊆ \set{w | \ml{vaped} \ml{p}}\\
+    & . c ∩ \set{w| ¬\ml{vapes}_{w} \ml{p}}
+    \end{aligned}\)
+  \xe
+
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Heim connectives}
+
+\ex
+\(\ml{not} u ≔ λ c . c ∖ (u c)\)\\
+\textit{Take the result of updating \(c\) with \(u\), and subtract the result from \(c\)}.
+\xe
+
+\ex~
+\(u \ml{and} v ≔ λ c . (v ∘ u) c\)\\
+\textit{First update \(c\) with \(u\), then update the result with \(v\)}.
+\xe
+
+\framebreak
+
+\ex
+\(\ml{if }u\ml{ then }v ≔ (\ml{not} u c) ∪ (u \ml{and} v) c\)\\
+\textit{Update \(c\) with \(u\), and subtract the result from \(c\) -- store this as \(c'\). Next, update \(c\) with \(u\), and then update the result with \(v\) -- store this as \(c''\). Finally, union \(c'\) and \(c''\).}
+\xe
+
+\ex~
+\(u \ml{or} v ≔ λ c . u c ∪ v (\ml{not} u c)\)\\
+\textit{Update \(c\) with \(u\) -- store this as \(c'\). Next, update \(c\) with \(u\), subtract the result from \(c\), and update this with \(v\) -- store this as \(c''\). Union \(c'\) and \(c''\).}
+\xe
+
+\end{frame}
+
+\begin{frame}{Illustration for disjunction}
+
+  \ex
+  Paul never vaped or Paul stopped vaping.\hfill\textit{presuppositionless}
+  \xe
+
+  \pex~
+  \a\label{step1}\(\ml{not} \mathbb{A} \eval{Paul vaped} = λ c . c ∖ (c ∩ \set{w | \ml{vaped}_{w} \ml{p}})\)
+  \a\label{step2}\(\mathbb{A} \eval{Paul stopped vaping} = \begin{aligned}[t]
+    λ c &: c ⊆ \set{w | \ml{vaped}_{w} \ml{p}}\\
+    & . c ∩ \set{w | ¬ \ml{vapes}_{w} \ml{p}}
+    \end{aligned}\)
+    \a\label{step3}\(\begin{aligned}[t]
+      &(\ref{step1}) \ml{or} (\ref{step2})\\
+      = λ c&:\alert{\overbrace{(c ∩ \set{w|\ml{vaped}_{w} p}) ⊆ \set{w|\ml{vaped}_{w} \ml{p}}}^{⊤}}\\
+      & . (c ∖ (c ∩ \set{w | \ml{vaped}_{w} \ml{p}}))\\
+      &  ∪ ((c ∩ \set{w|\ml{vaped}_{w} \ml{p}}) ∩ \set{w | ¬ \ml{vapes}_{w} \ml{p}})
+    \end{aligned}\)
+  \xe
+
+\end{frame}
+
+% \begin{frame}{Assertion}
+
+%   \ex Partial assertion operator (def.)\\
+%   \(𝔸 ϕ ≔ λ c:c ⊆ \ml{dom} ϕ . c ∩ \set{w|ϕ w}\)
+%   \xe
+
+%   \ex~
+% \(\eval{Paul stopped vaping} = λ w:\ml{vaped}_{w} \ml{p} . ¬\ml{vapes}_{w} \ml{p}\)
+% \xe
+
+% \ex~
+% \(\ml{dom} \eval{Paul stopped vaping} = \set{w|\ml{vaped}_{w} \ml{p}}\)
+% \xe
+
+% \ex~
+% \(𝔸 \eval{Paul stopped vaping} = \begin{aligned}[t]
+% λ c&:c ⊆ \set{w|\ml{vaped}_{w} \ml{p}}\\
+% & . c ∩ \set{w|¬\ml{vapes}_{w} \ml{p}}
+% \end{aligned}\)
+% \xe
+
+% \end{frame}
+
+% \begin{frame}[allowframebreaks]{Logical connectives}
+
+%   \pex \emph{Heimian negation}
+% \a \(¬ u ≔ λ c . c ∖ (u c)\)
+% \a Take the result of updating \(c\) with \(u\), and subtract the result from \(c\).
+% \xe
+
+% \pex~ \emph{Heimian conjunction}
+% \a \(u ∧ v ≔ λ c . (v ∘ u) c\)
+% \a First update \(c\) with \(u\), then update the result with \(v\).
+% \xe
+
+% \pex~ \emph{Heimian implication}
+% \a \(\ml{if} u \ml{then} v ≔ (¬ u c) ∪ (u ∧ v) c\)
+% \a First, update \(c\) with \(u\), and subtract the result from \(c\), and store the result as \(c'\). Next, update \(c\) with \(u\), and then update the result with \(v\), storing the result as \(c''\). Now, take the union of \(c'\) and \(c''\).
+% \xe
+
+% \pex~ \emph{Heimian disjunction}
+% \a \(u ∨ v ≔ λ c . u c ∪ v (¬ u c)\)
+% \a First, update \(c\) with \(u\), retaining the result \(c'\). Then, update \(c\) with \(u\), subtract the result from \(c\), and update \emph{this} with \(v\), retaining the result \(c''\). Finally, take the union of \(c'\) and \(c''\).
+% \xe
+
+% \end{frame}
+
+\begin{frame}{Explanatory problem for Dynamic Semantics}
+
+  \begin{itemize}
+
+    \item Linear asymmetries built into the entry for each individual connective; concomitantly, easy to define \enquote{deviant} dynamic connectives that are truth-conditionally adequate but get the projection facts wrong.
+
+    \item E.g., \textit{reverse dynamic conjunction}.
+
+      \ex
+      \(u \ml{rand} v ≔ λ c . (u ∘ v) c\)
+      \xe
+
+    \item Just by reversing the order of function composition, we predict that a subsequent conjunct could satisfy the presuppositions of previous conjuncts.
+
+   \end{itemize}
+
+\end{frame}
+
+\section{State-monadic update semantics}
+
+\begin{frame}{The monad slide}
+
+  \begin{itemize}
+
+      \item Here we'll attempt to (partially) resolving the explanatory problem by stipulating the linear order of information growth \textit{once}.
+
+      \item Concretely, we follow \citet{shan2002}, \citet{asudehGiorgolo2016}, and especially \citet{Charlowc} in using a \textit{monad} to extend a pure, Montagovian fragment.
+
+    \item You don't have to care about what a monad is for the purposes of this talk. Here is what we're going to introduce:
+
+      \begin{itemize}
+
+          \item We answer the question \enquote{what kind of semantic object is an update?} by providing a type constructor for updates.
+
+          \item An injection function, for lifting values into trivial updates.
+
+          \item A way of doing function application in the update-semantic space.
+
+
+      \end{itemize}
+
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}{State}
+
+  Type constructor for updates:
+
+  \ex
+  \(\type{U a ∷= \set{s} → (a ∗ \set{s})}\)
+  \xe
+
+  Injection function from an ordinary value \(a\) to an update:
+
+  \ex
+  \(a^{ρ} ≔ λ c . ⟨a,c⟩\)
+  \xe
+
+\end{frame}
+
+\begin{frame}{State-sensitive application}
+
+  \ex~
+  \(\begin{aligned}[t]
+    m ⊛ n ≔ λc . ⟨\ml{A} x y,c''⟩\\
+    &\ml{for}&⟨x,c'⟩ ≔ m c\\
+    &&⟨y,c''⟩ ≔ n c'
+    \end{aligned}\)
+  \xe
+
+  \begin{itemize}
+
+      \item Takes two \textit{updates} \(m\) and \(n\) as inputs.
+
+      \item The input context set \(c\) is first fed into \(m\), returning a potentially updated context \(c'\).
+
+      \item \(c'\) is fed into \(n\), returning a potentially updated output context \(c''\).
+
+      \item The ordinary values contained in the updates undergo ordinary function application.
+
+  \end{itemize}
+
+\end{frame}
+
+\begin{frame}{Assert operator}
+
+  \ex
+  \(\mathbb{A} m ≔ λ c . ⟨p, c' ∩ p⟩\)\hfill\(\ml{for }⟨p,c'⟩ ≔ m c\)
+  \xe
+
+  \begin{center}
+  \begin{forest}
+    [{\(λ c . \Braket{\begin{aligned}[c]
+          &λ w . \ml{smokes}_{w} \ml{h} ∧ \ml{vapes}_{w} \ml{p}\\
+          &(c ∩ \set{w|\ml{smokes}_{w} \ml{h}} ∩ \set{w|\ml{vapes}_{w} \ml{p}})
+        \end{aligned}}\)\\\(⊛\)}
+      [{...} [{\(\mathbb{A} (\eval{Paul vapes}^{ρ})\)},roof]]
+      [{\(⊛\)}
+        [{\(∧^{ρ}\)}]
+        [{...} [{\(\mathbb{A} (\eval{Hubert smokes}^{ρ})\)},roof]]
+      ]
+    ]
+  \end{forest}
+  \end{center}
+
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Heavy lifting}
+
+  How do we get the dynamic connectives in this system?
+
+  To simplify the technical details, we have to assume that the lexical entry for each (classical) propositional connective comes with an additional parameter \(r\). This is harmless.
+
+  \[\begin{aligned}[t]
+      &\ml{not}_{r} p &&≔ \alert{λr} . \alert{r} ∖ p\\
+      &p \ml{and}_{r} q &&≔\alert{λr} . \alert{r} ∩ q ∩ p\\
+      &\ml{if }p\ml{ then}_{r} q &&≔ \alert{λ r} . (\alert{r} ∖ p) ∪ q\\
+      &p \ml{or}_{r} q &&≔ \alert{λr} . \alert{r} ∩ (p ∪ q)
+    \end{aligned}\]
+
+  \framebreak
+
+    If the additional parameter is saturated by \(D_{\type{s}}\) we just get...the ordinary propositional connectives.
+
+  \[\begin{aligned}[t]
+      &\ml{not}_{r} p D_{\type{s}} &&= p^{-}\\
+      &(p \ml{and}_{p} q) D_{\type{s}} &&= p ∩ q\\
+      &(\ml{if }p\ml{ then}_{r} q) D_{\type{s}} &&= p^{-} ∪ q\\
+      &(p \ml{or}_{r} q) D_{\type{s}} &&= p ∪ q
+    \end{aligned}\]
+
+  \framebreak
+
+  Now let's define our function \(\ml{dlift}_{n}\).
+
+  \[
+    \begin{aligned}[t]&(\ml{dlift}_{1} f) m ≔ λ c . \Braket{\begin{aligned}[c]
+        &f p D_{\type{s}},\\
+        &f c' c
+      \end{aligned}}
+    &&\ml{for }⟨p,c'⟩ ≔m c
+    \end{aligned}
+  \]
+
+  \[
+    \begin{aligned}[t]&m (\ml{dlift}_{2} f) n ≔ λ c . \Braket{\begin{aligned}[c]
+        &f q p D_{\type{s}},\\
+        &f c'' c' c
+      \end{aligned}} & \begin{aligned}[t]
+    &&\ml{for }⟨p,c'⟩ ≔m c\\
+    &&⟨q,c''⟩ ≔n c
+      \end{aligned}
+    \end{aligned}
+  \]
+
+  Informally -- in the ordinary dimension, the connective \(f\) has its inner argument saturated by \(D_{\type{s}}\), returning the ordinary propositional meaning. In the contextual dimension, the propositional connective's inner-argument is saturated by the input context, in which case we get...the Heimian connectives (with provisos).
+
+  \framebreak
+
+  \ex
+  \(\begin{aligned}[t]\ml{dlift}_{1} \ml{not}_{r} = λ m . λ c . \Braket{\begin{aligned}[c]
+      &p^{-}\\
+      &c ∖ c'
+    \end{aligned}}&&\ml{for} ⟨p,c'⟩ ≔ m c\end{aligned}\)
+  \xe
+
+  \ex~
+  \(\begin{aligned}[t]
+    \ml{dlift}_{2} \ml{and}_{r} = λ n . λ m . λ c . \Braket{\begin{aligned}[c]
+        &p ∩ q\\
+        &(c ∩ c') ∩ c''
+      \end{aligned}}
+    &&\begin{aligned}[t]
+      &⟨p,c'⟩ ≔ m c\\
+      &⟨q,c''⟩ ≔ n c'
+    \end{aligned}\end{aligned}\)
+  \xe
+
+  \ex~
+  \(\begin{aligned}[t]
+    \ml{dlift}_{2} (\ml{if\ldots then}_{r}) = λ n . λ m . λ c . \Braket{\begin{aligned}[c]
+        &p^{-} ∪ q\\
+        &(c ∖ c')∪ c''
+      \end{aligned}}
+    &&\begin{aligned}[t]
+      &⟨p,c'⟩ ≔ m c\\
+      &⟨q,c''⟩ ≔ n c'
+    \end{aligned}\end{aligned}\)
+  \xe
+
+  \end{frame}
+
+  \begin{frame}{Illustration}
+
+    \begin{footnotesize}
+    \begin{forest}
+      [{\(λ c . \Braket{\begin{aligned}[c]
+            &\textcolor{gray}{...}\\
+            &\begin{aligned}[t]
+              &c ∖ (c ∩ \set{w|\ml{vaped}_{w} p+s})\\
+              &∪ (c ∩ \set{w|\ml{vaped}_{w} p+s}) ∩ \set{w|¬ \ml{vapes}_{w} p}
+              \end{aligned}
+          \end{aligned}}\)}
+      [{\(λc . \Braket{\begin{aligned}
+            &\textcolor{gray}{\set{w|\ml{vaped}_{w} p+s}},\\
+            &c ∩ \set{w|\ml{vaped}_{w} p+s}
+          \end{aligned}}\)} [{\(\mathbb{A}\) Paul and Sophie vaped},roof]]
+        [{\(\)}
+          [{\(\ml{dlift}_{2} (\ml{if\ldots then}_{r})\)}]
+          [{\(λ c\begin{aligned}[t]&:\alert{c ⊆ \set{w|\ml{vaped}_{w} p}}\\
+              &\left\langle\begin{aligned}[c]
+                  &\textcolor{gray}{\set{w|¬ \ml{vapes}_{w} p}}\\
+                  &c ∩ \set{w|¬ \ml{vapes}_{w} p}
+                \end{aligned}\right\rangle
+              \end{aligned}\)} [{\(\mathbb{A}\) Paul stopped vaping},roof]]
+        ]
+      ]
+    \end{forest}
+    \end{footnotesize}
+
+    Post \(\ml{dlift}\), \(\ml{if\ldots then}\) feeds \(c\) updated with \textit{Paul and Sophie vape} as the input context to the conditional consequent, locally satisfying the presupposition.
+
+  \end{frame}
+
+  \begin{frame}{A bad prediction for disjunction}
+
+    The Heim rule for disjunction, recast in a state-monadic setting:
+
+    \(\begin{aligned}[t]\ml{or}_{Heim} ≔ λ n . λm . λc . \Braket{\begin{aligned}[c]
+        &p ∪ q\\
+        &c ∩ (c' ∪ c'')
+      \end{aligned}}&&\begin{aligned}[t]
+      &⟨p,c'⟩ ≔ m c\\
+      &\alert{⟨q,c''⟩ ≔ n (c ∖ c')}
+    \end{aligned}\end{aligned}\)
+
+  Application of \(\ml{dlift}\) to classical disjunction:
+
+      \(\begin{aligned}[t]\ml{dlift} \ml{or} ≔ λ n . λm . λc . \Braket{\begin{aligned}[c]
+        &p ∪ q\\
+        &c ∩ (c' ∪ c'')
+      \end{aligned}}&&\begin{aligned}[t]
+      &⟨p,c'⟩ ≔ m c\\
+      &\alert{⟨q,c''⟩ ≔ n c'}
+    \end{aligned}\end{aligned}\)
+
+  Not correct! Predicts that the local context for the second disjunct is just \(c\) updated with the first disjunct.
+
+  \ex
+  \ljudge{\#}Either Paul vaped or Paul stopped vaping.\\\phantom{,}\hfill\textit{predicted to be presuppositionless}
+  \xe
+
+  \end{frame}
+
+  \section{Enter \textsf{exh}}
+
+  \begin{frame}[allowframebreaks]{Enter \textsf{exh}}
+
+  \begin{itemize}
+
+      \item Maybe this prediction isn't as bad as it seems. There is independent need for an exhaustification operator \textsf{exh}.
+
+    \item How should we define \textsf{exh} in a system with updates? We'll suggest the following entry:
+
+      \ex
+      \(\begin{aligned}[t]
+        \ml{exh} m ≔ λ c . ⟨p,c'⟩\\
+        &⟨p,c'⟩ ≔ m (c ∩ \bigwedge\limits_{q \in \ml{excl} p} \set{\ml{not} q})
+        \end{aligned}\)
+      \xe
+
+      \framebreak
+
+    \item Quasi formally:
+
+      \begin{itemize}
+
+        \item \(\ml{exh}\) takes an update \(m\) as its prejacent, and updates the input context \(c\) with the implicatures of its prejacent, resulting in an updated context \(c'\).
+
+        \item \(\ml{exh}\) updates the context \(c'\) with its prejacent.
+
+        \item In the ordinary dimension, \(\ml{exh}\) just returns its prejacent.
+
+      \end{itemize}
+
+      \vspace{3ex}
+      \metroset{block=fill}
+      \begin{block}{Prediction}
+        Implicature computation can feed presupposition satisfaction.
+      \end{block}
+
+  \end{itemize}
+
+  \end{frame}
+
+  \begin{frame}{Alternatives}
+
+    \metroset{block=fill}
+    \begin{block}{Assumptions concerning alternatives}
+      In a sentence of the form \enquote{P or Q}, P is an alternative to Q.
+    \end{block}
+
+    Perhaps counter-intuitively, this just follows from, e.g., \citeauthor{foxKatzir2011}'s (\citeyear{foxKatzir2011}) algorithm for computing alternatives, since, at the point we reach the second disjunct, the first has been mentioned, and therefore should be in the substitution source.
+
+    We now have everything we need to rescue our deviant prediction for conjunction. We simply assume that the second disjunct may be exhaustified.
+
+  \end{frame}
+
+  \begin{frame}{Illustration}
+
+    \begin{scriptsize}
+    \ex
+    Paul never vaped or Paul stopped vaping.
+    \xe
+      \begin{forest}
+      [{...}
+        [{...} [{\(\mathbb{A} (\eval{Paul never vaped})^{ρ}\)},roof]]
+        [{...}
+          [{\(\ml{dlift} \ml{or}\)}]
+          [{\(λ c . \begin{cases}
+              \Braket{\begin{aligned}[c]
+                  &\textcolor{gray}{λ w . ¬ \ml{vapes}_{w} \ml{p}}\\
+                  &(c ∩ \set{w|¬ \ml{vaped}_{w} \ml{p}})\\
+                  &∩ \set{w | ¬ \ml{vapes}_{w} \ml{p}}
+                \end{aligned}}&\alert{⊤}\\
+              \#&\ml{otherwise}
+              \end{cases}\)}
+          [{\(\ml{exh}\)\\
+            (Paul never vaped\\
+            \(∈ \ml{alt} (\text{Paul stopped vaping})\))}]
+          [{\(λ c . \begin{cases}
+              \Braket{\begin{aligned}[c]
+                  &\textcolor{gray}{λ w . ¬ \ml{vapes}_{w} \ml{p}}\\
+                  &c ∩ \set{w | ¬ \ml{vapes}_{w} \ml{p}}
+                \end{aligned}}&\alert{c ⊆ \set{w|\ml{vaped}_{w} \ml{p}}}\\
+              \#&\ml{otherwise}
+              \end{cases}\)} [{\(\mathbb{A} (\eval{Paul stopped vaping})^{ρ}\)},roof]]
+        ]
+      ]]
+      \end{forest}
+
+    \end{scriptsize}
+
+  \end{frame}
+
+  \begin{frame}{A prediction}
+
+    \begin{itemize}
+
+    \item Based on \citet{foxKatzir2011}, if in a sentence \enquote{A or B}, A is an alternative to B, and A is \textit{complex}, then every subconstituent of A should be an alternative to B.
+
+    \end{itemize}
+    \vspace{3ex}
+
+    \metroset{block=fill}
+    \begin{block}{Prediction}
+      If, in a sentence of the form \enquote{A or B\(_{π}\)}, the negation of A doesn't entail \(π\), \textit{but} the negation of some subconstituent of A entails \(π\), the sentence as a whole should be presuppositionless.
+    \end{block}
+
+  \end{frame}
+
+  \begin{frame}{The prediction is borne out}
+
+    The relevant cases involve a conjunctive first disjunct; the negation of the conjunctive disjunct is weak, but the negation of each conjunct is strong enough to satisfy the presupposition of the second disjunct.
+
+    \ex
+    Either {[}\alert{Paul never vaped} and he jogged every day],\\
+    or Paul stopped vaping.\hfill\textit{Doesn't presuppose that Paul vaped}
+    \xe
+
+    \ex~
+    Either {[}\alert{there is no monarch} and the country is in chaos],\\
+    or the monarch is in exile.\hfill\textit{Doesn't presuppose a monarch}
+    \xe
+
+    \ex~
+    {[}\alert{Either nobody left early}]\\
+    or only Josie left early.\hfill\textit{Doesn't presuppose that J left early}
+    \xe
+
+
+  \end{frame}
+
+  \section{Conclusion}
+
+  \begin{frame}[allowframebreaks]{Overview}
+
+    \begin{itemize}
+
+        \item Contrary to popular belief, we've shown that it's possible to have a dynamic semantics where the order of information growth \textit{isn't} baked into the meaning of each individual connective. See \citet{rothschild2017} for a related proposal.
+
+        \item Rather, in our state-monadic fragment, we baked the order of information growth into the state-sensitive application rule, and nowhere else.
+
+        \item This still might be subject to an explanatory problem, but it certainly seems like an improvement.
+
+        \framebreak
+
+      \item We showed that systematically lifting a static fragment into a dynamic one makes good predictions, with the notable exception of disjunction.
+
+       \item We suggested that this tension can be resolved by incorporating \textit{exhaustification} into a dynamic setting, which in any case we need.
+
+        \item A detailed comparison to explanatory theories of presupposition projection, such as Schlenkerian local contexts, is next on the agenda.
+
+    \end{itemize}
+
+  \end{frame}
+
+  \begin{frame}{Thanks and acknowledgements}
+
+    Thanks especially to Paul Marty, Matt Mandelkern, and Daniel Rothschild for helpful discussion, as well as to audiences at ZAS and the Frankfurt semantics colloquium.
+    \vspace{10ex}
+    \metroset{block=fill}
+    \begin{block}{Implementation}
+    A haskell implementation of the state monadic fragment outlined here can be found at: \url{https://github.com/patrl/monadicHeim}
+    \end{block}
+
+  \end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+
+ \printbibliography[heading=none]
+
+\end{frame}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-engine: xetex
+%%% End:
